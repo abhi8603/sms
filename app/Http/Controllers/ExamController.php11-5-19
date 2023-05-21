@@ -1,0 +1,755 @@
+<?php
+namespace App;
+namespace App\Http\Controllers;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\AuthenticatesUsers;
+use Illuminate\Http\Request;
+use Auth;
+
+use App\Http\Requests;
+use Illuminate\Support\Collection;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Input;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Illuminate\Foundation\Auth\RegistersUsers;
+use App\permission;
+use App\EmployeeRolesPermission;
+use App\EmployeeRoles;
+date_default_timezone_set('Asia/Kolkata');
+class ExamController extends Controller
+{
+  public function __construct()
+  {
+      $this->middleware('auth');
+      $this->middleware('SchoolMiddleware');
+  }
+  public function examlist(){
+    $self='Exam/exam_list';
+    if (\Auth::user()->user_role!=='1'){
+        $get_perm=permission::permitted($self);
+
+        if ($get_perm=='access denied'){
+            return redirect('permission-error')->with([
+                'message' => 'You do not have permission to view this page.',
+                'message_important'=>true
+            ]);
+        }
+    }
+     $examlist=DB::table('tb_exam')->where('branch_code',Auth::user()->school_id)->get();
+  //   print_r($userList);exit;
+     return view('Exam.exam_list',compact('examlist'));
+  }
+
+  public function add_exam(Request $request)
+  {
+      $self='Exam/exam_list';
+    if (\Auth::user()->user_role!=='1'){
+        $get_perm=permission::permitted($self);
+
+        if ($get_perm=='access denied'){
+            return redirect('permission-error')->with([
+                'message' => 'You do not have permission to view this page.',
+                'message_important'=>true
+            ]);
+        }
+    }
+       $exam_name=Input::get('exam_name');
+      $description=Input::get('description');
+      $created_date = date('d-m-Y H:i:s');
+       $this->validate($request, [
+      'exam_name'=>'required|string|max:255|unique:tb_exam',
+      ]);
+      $exam=DB::table('tb_exam')->insert(['exam_name'=>$exam_name,'description'=>$description,'academic_year'=>app_config('Session',Auth::user()->school_id),'created_date'=>$created_date,'branch_code'=>Auth::user()->school_id]);
+
+      if(!empty($exam)){
+         return redirect('Exam/exam_list')->with([
+                 'message' => 'Exam is Added Succesfully.'
+             ]);
+       }else{
+              return redirect('Exam/exam_list')->with([
+                   'message' => 'Exam Added failed.',
+                   'message_important'=>true
+               ]);
+            }
+        }
+
+
+    public function delete_exam(Request $request,$id)
+      {
+    $self='exam/delete';
+    if (\Auth::user()->user_role!=='1'){
+        $get_perm=permission::permitted($self);
+
+        if ($get_perm=='access denied'){
+            return redirect('permission-error')->with([
+                'message' => 'You do not have permission to view this page',
+                'message_important'=>true
+            ]);
+        }
+    }
+        if($id!=null){
+           DB::table('tb_exam')->where('id',$id)->where('branch_code',Auth::user()->school_id)->delete();
+
+            return redirect('Exam/exam_list')->with([
+                'message' => "Exam Details Deleted Successfully."
+            ]);
+        }else{
+            return redirect('Exam/exam_list')->with([
+                'message' => "Exam Details Not Found",
+                'message_important' => true
+            ]);
+      }
+  }
+
+    public function exam_schedule(Request $request)
+    {
+
+
+      $course=DB::table('tb_course')->where('branch_code',Auth::user()->school_id)->get();
+    //$subject=DB::table('tb_subject')->where('branch_code',Auth::user()->school_id)->get();
+
+    return view('Exam.exam_shedule_lists',compact('course','e_id'));
+    }
+
+    public function schedulelist(Request  $request)
+    {
+        $bid=$request->bid;
+        $cid=$request->cid;
+        $list=DB::table('exam_schedule')
+        ->join('tb_exam','exam_schedule.exam','=','tb_exam.id')
+        ->select('exam_schedule.*','tb_exam.exam_name')
+        ->where('exam_schedule.branch_code',Auth::user()->school_id)
+        ->where('exam_schedule.course',$cid)
+        ->where('exam_schedule.batch',$bid)
+        ->where('exam_schedule.academic_year',app_config('Session',Auth::user()->school_id))
+        ->get();
+
+        echo $list;
+
+    }
+
+    public function add_exam_schedule(Request $request)
+    {
+      $exam=DB::table('tb_exam')->where('branch_code',Auth::user()->school_id)->get();
+      $course=DB::table('tb_course')->where('branch_code',Auth::user()->school_id)->get();
+      return view('Exam.create_exam_schedules',compact('exam','course'));
+    }
+
+    public function subjectlist(Request $request)
+    {
+      $bid=$request->bid;
+      $cid=$request->cid;
+
+      $s=DB::table('assign_subject')
+            ->join('tb_subject', 'assign_subject.subject', '=', 'tb_subject.id')
+            ->select('assign_subject.*', 'tb_subject.subject_name')
+            ->where('assign_subject.acadmic_year',app_config('Session',Auth::user()->school_id))
+            ->where('assign_subject.batch',$bid)
+            ->where('assign_subject.course',$cid)
+            ->where('assign_subject.status','1')
+            ->where('assign_subject.branch_id',Auth::user()->school_id)
+            ->get();
+              echo $s;
+
+            }
+
+
+    public function createschedule(Request $request)
+    {
+        $bid=$request->bid;
+      $cid=$request->cid;
+
+      $s=DB::table('assign_subject')
+            ->join('tb_subject', 'assign_subject.subject', '=', 'tb_subject.id')
+            ->select('assign_subject.*', 'tb_subject.subject_name','tb_subject.id')
+            ->where('assign_subject.acadmic_year',app_config('Session',Auth::user()->school_id))
+            ->where('assign_subject.batch',$bid)
+            ->where('assign_subject.course',$cid)
+            ->where('assign_subject.status','1')
+            ->where('assign_subject.branch_id',Auth::user()->school_id)
+            ->get();
+              echo $s;
+
+    }
+
+
+    public function create_exam_schedule(Request $request)
+    {
+      $eid = $request->date;
+      $data=json_decode($eid);
+      $exam_name=$request->exam_name;
+      $course=$request->courses;
+      $batch=$request->batch;
+      //$created_date = date('d-m-Y H:i:s');
+
+      $cnt=DB::table('exam_schedule')->where('exam',$exam_name)->where('course',$course)->where('batch',$batch)->where('academic_year',app_config('Session',Auth::user()->school_id))->count();
+
+if($cnt=='0'){
+    try{
+    $ExamID=DB::table('exam_schedule')->insertGetId(['exam'=>$exam_name,'course'=>$course,'batch'=>$batch,'branch_code'=>Auth::user()->school_id,'academic_year'=>app_config('Session',Auth::user()->school_id)]);
+   // echo $cnt;exit;
+        if(!empty($ExamID)){
+        foreach($data as $data){
+    //    echo $data->name;
+         $saveData= DB::table('exam_schedule_details')->insert(['exam_id'=>$exam_name,'exam_schedule_id'=>$ExamID,'sub_id'=>$data->sub_id,'subject'=>$data->name,'exam_date'=>$data->dates,'start_time'=>$data->starttime,'end_time'=>$data->endtime,'room_no'=>$data->room,'full_marks'=>$data->fillmarks,'pass_marks'=>$data->passmark]);
+        }
+        }else{
+            echo "Unable to create exam scheudule.Please try again.";
+        }
+    }catch(\Illuminate\Database\QueryException $ex){
+        echo "Something went worng.Please Contact Teachnical Team.";//$ex->getMessage();
+    }
+    if(!empty($saveData)){
+        echo "Exam Scheudule Created Successfully.";
+    }else{
+         echo "Unable to create exam scheudule.Please try again.";
+    }
+}else{
+    echo "This Exam Schedule Already Exists for this Acadmic Year.";
+}
+
+
+    /*  for($i=0;$i<count($subject_name);$i++)
+      {
+        $save=DB::table('exam_schedule')->insert(['exam'=>$exam_name,'course'=>$course,'batch'=>$batch,'subject'=>$subject_name[$i],'exam_date'=>$date[$i],'start_time'=>$start_time[$i],'end_time'=>$end_time[$i],'room_no'=>$room[$i],'full_marks'=>$full_marks[$i],'pass_marks'=>$pass_marks[$i],'academic_year'=>app_config('Session',Auth::user()->school_id),'created_date'=>$created_date,'branch_code'=>Auth::user()->school_id]);
+      }
+
+          if(!empty($exam)){
+         return redirect('Exam/createschedule')->with([
+                 'message' => 'Exam is Added Succesfully.'
+             ]);
+       }else{
+              return redirect('Exam/createschedule')->with([
+                   'message' => 'Exam Added failed.',
+                   'message_important'=>true
+               ]);
+            }*/
+      }
+
+      public function exam_time_table(Request $request)
+      {
+         $e_id=$request->e_id;
+        $ex=DB::table('exam_schedule_details')
+        ->where('exam_schedule_id',$e_id)
+        ->get();
+
+       echo $ex;
+      }
+
+      public function mark_grade()
+      {
+         $self='Exam/mark_grade';
+    if (\Auth::user()->user_role!=='1'){
+        $get_perm=permission::permitted($self);
+
+        if ($get_perm=='access denied'){
+            return redirect('permission-error')->with([
+                'message' => 'You do not have permission to view this page.',
+                'message_important'=>true
+            ]);
+        }
+    }
+     $grade=DB::table('tb_marks_grade')->where('branch_code',Auth::user()->school_id)->get();
+  //   print_r($userList);exit;
+     return view('Exam.marks_grade',compact('grade'));
+      }
+
+      public function add_mark_grade(Request $request)
+      {
+        $self='Exam/mark_grade';
+    if (\Auth::user()->user_role!=='1'){
+        $get_perm=permission::permitted($self);
+
+        if ($get_perm=='access denied'){
+            return redirect('permission-error')->with([
+                'message' => 'You do not have permission to view this page.',
+                'message_important'=>true
+            ]);
+        }
+    }
+       $grade_name=Input::get('grade_name');
+       $percent_from=Input::get('percent_from');
+       $percent_upto=Input::get('percent_upto');
+
+      $description=Input::get('description');
+      $created_date = date('d-m-Y H:i:s');
+       $this->validate($request, [
+      'grade_name'=>'required|string|max:255|unique:tb_marks_grade',
+      ]);
+      $grade=DB::table('tb_marks_grade')->insert(['grade_name'=>$grade_name,'percent_from'=>$percent_from,'percent_upto'=>$percent_upto,'description'=>$description,'academic_year'=>app_config('Session',Auth::user()->school_id),'created_date'=>$created_date,'branch_code'=>Auth::user()->school_id]);
+
+      if(!empty($grade)){
+         return redirect('Exam/mark_grade')->with([
+                 'message' => 'grade is Added Succesfully.'
+             ]);
+       }else{
+              return redirect('Exam/mark_grade')->with([
+                   'message' => 'Grade Added failed.',
+                   'message_important'=>true
+               ]);
+            }
+        }
+
+
+    public function delete_grade(Request $request,$id)
+      {
+    $self='exam/delete_grade';
+    if (\Auth::user()->user_role!=='1'){
+        $get_perm=permission::permitted($self);
+
+        if ($get_perm=='access denied'){
+            return redirect('permission-error')->with([
+                'message' => 'You do not have permission to view this page',
+                'message_important'=>true
+            ]);
+        }
+    }
+        if($id!=null){
+           DB::table('tb_marks_grade')->where('id',$id)->where('branch_code',Auth::user()->school_id)->delete();
+
+            return redirect('Exam/mark_grade')->with([
+                'message' => "Grade Details Deleted Successfully."
+            ]);
+        }else{
+            return redirect('Exam/mark_grade')->with([
+                'message' => "Grade Details Not Found",
+                'message_important' => true
+            ]);
+      }
+  }
+
+  public function mark_register(Request $request)
+  {
+    $cid=$request->cid;
+    $bid=$request->bid;
+     $exam=DB::table('tb_exam')->where('academic_year',app_config('Session',Auth::user()->school_id))->where('branch_code',Auth::user()->school_id)->get();
+      $course=DB::table('tb_course')->where('branch_code',Auth::user()->school_id)->get();
+
+
+       $s=DB::table('subject_allocation')
+          ->join('tb_subject','subject_allocation.subject','=','tb_subject.id')
+          ->where('subject_allocation.branch_code',Auth::user()->school_id)
+          ->where('subject_allocation.batch','=',$bid)
+          ->where('subject_allocation.course','=',$cid)
+          ->get();
+
+           $m=DB::table('mark_register')
+          ->join('tb_course','mark_register.course','=','tb_course.id')
+          ->join('tb_batch','mark_register.batch','=','tb_batch.id')
+          ->groupby('mark_register.register_no')
+          ->where('mark_register.batch','=',$bid)
+          ->where('mark_register.course','=',$cid)
+          ->get();
+		   $mk=null;
+          $result=array();
+          foreach($m as $mkk)
+          {
+             $mkk->register_no;
+
+               $mk=DB::table('mark_register')
+          ->join('tb_course','mark_register.course','=','tb_course.id')
+          ->join('tb_batch','mark_register.batch','=','tb_batch.id')
+          ->where('mark_register.batch','=',$bid)
+          ->where('mark_register.course','=',$cid)
+          ->where('mark_register.register_no','=',$mkk->register_no)
+          ->get();
+          foreach($mk as $mm)
+          {
+            array_push($result,array('id'=>$mm->id,'marks'=>$mm->marks));
+          }
+          }
+           json_encode($result);
+         // echo "<pre>";
+
+         // print_r($result);
+         // exit;
+
+
+
+ $marks = DB::table('mark_register')
+                 ->join('stu_admission', 'mark_register.register_no', '=', 'stu_admission.reg_no')
+                 ->select('mark_register.subject','mark_register.id','stu_admission.stu_name','stu_admission.reg_no','stu_admission.roll_no')
+                 ->where('mark_register.batch','2')
+                 ->where('mark_register.course','2')
+                  ->where('mark_register.exam','4')
+                 ->get();
+                 $finaldata=array();
+                 $marksarray=array();
+                 $basic_details=array();
+                 foreach($marks as $marks){
+                      $stu_name=$marks->stu_name;
+                     $reg_no=$marks->reg_no;
+                     $roll=$marks->roll_no;
+                     $id=$marks->id;
+           //        $db= DB::table('mark_register')->where('register_no',$reg_no)->get();
+               $db= DB::table('mark_register')
+            ->join('tb_subject', 'mark_register.subject', '=', 'tb_subject.id')
+            ->select('mark_register.*', 'tb_subject.subject_name')
+            ->where('mark_register.register_no',$reg_no)
+            ->get();
+                   foreach($db as $db){
+                       array_push($marksarray,array("marks"=>$db->marks,"subject"=>$db->subject,"sub_name"=>$db->subject_name));
+                   }
+                    $subs["subjects"]=$marksarray;
+
+                    array_push($basic_details,array("stu_name"=>$stu_name,"reg_id"=>$reg_no,"roll_no"=>$roll,"all_subs"=>$subs));
+                    unset($subs);
+                    unset($marksarray);
+                    $marksarray=array();
+                 }
+                 //$stu_details['stu_details']=$basic_details;
+                 //$subs["subjects"]=$marksarray;
+                 //array_merge($stu_details,$subs);
+              //  array_push($finaldata,$reg_no,$roll,$stu_name,$subs);
+              $d=$basic_details;
+              //   echo "<pre>";
+              //   print_r(array_unique($basic_details, SORT_REGULAR));
+
+
+      return view('Exam.marks',compact('exam','course','s','m','mk','result'));
+  }
+  public function all_result(Request $request){
+
+      $cid=$request->cid;
+      $bid=$request->bid;
+      $examid=$request->examid;
+      $subjects= DB::table('assign_subject')
+            ->join('tb_subject', 'assign_subject.subject', '=', 'tb_subject.id')
+            ->select('assign_subject.*', 'tb_subject.subject_name','tb_subject.id')
+            ->where('assign_subject.acadmic_year',app_config('Session',Auth::user()->school_id))
+            ->where('assign_subject.batch',$bid)
+            ->where('assign_subject.course',$cid)
+            ->where('assign_subject.status','1')
+            ->where('assign_subject.branch_id',Auth::user()->school_id)
+            ->get();
+           //print_r($subjects);
+
+ $marks = DB::table('mark_register')
+                 ->join('stu_admission', 'mark_register.register_no', '=', 'stu_admission.reg_no')
+                 ->select('mark_register.subject','mark_register.id','stu_admission.stu_name','stu_admission.reg_no','stu_admission.roll_no')
+                 ->where('mark_register.batch',$bid)
+                 ->where('mark_register.course',$cid)
+                  ->where('mark_register.exam',$examid)
+                 ->get();
+                 $finaldata=array();
+                 $marksarray=array();
+                 $basic_details=array();
+                 foreach($marks as $marks){
+                      $stu_name=$marks->stu_name;
+                     $reg_no=$marks->reg_no;
+                     $roll=$marks->roll_no;
+                     $id=$marks->id;
+           //        $db= DB::table('mark_register')->where('register_no',$reg_no)->get();
+               $db= DB::table('mark_register')
+            ->join('tb_subject', 'mark_register.subject', '=', 'tb_subject.id')
+            ->select('mark_register.*', 'tb_subject.subject_name')
+            ->where('mark_register.register_no',$reg_no)
+            ->get();
+                   foreach($db as $db){
+                       array_push($marksarray,array("register_no"=>$db->register_no,"marks"=>$db->marks,"subject"=>$db->subject,"sub_name"=>$db->subject_name));
+                   }
+                    $subs["subjects"]=$marksarray;
+
+                    array_push($basic_details,array("stu_name"=>$stu_name,"reg_id"=>$reg_no,"roll_no"=>$roll,"all_subs"=>$subs));
+                    unset($subs);
+                    unset($marksarray);
+                    $marksarray=array();
+                 }
+           $d="hg";
+           $data=array_unique($basic_details, SORT_REGULAR);
+           echo $subjects."|".json_encode($data);
+  }
+
+  public function create_mark_register(Request $request)
+  {
+  // $grade="SELECT tb_marks_grade.grade_name FROM tb_marks_grade WHERE '90' BETWEEN tb_marks_grade.percent_from and tb_marks_grade.percent_upto";
+
+
+      $exam=DB::table('tb_exam')->where('branch_code',Auth::user()->school_id)->get();
+      $course=DB::table('tb_course')->where('branch_code',Auth::user()->school_id)->get();
+
+
+
+      return view('Exam.create_mark_register',compact('exam','course'));
+  }
+  public function student_details(Request $request)
+  {
+        $bid=$request->bid;
+      $cid=$request->cid;
+       $examid=$request->examid;
+       $subject=$request->subject;
+
+    $student=DB::table('stu_admission')
+      ->where('course',$cid)
+      ->where('batch',$bid)
+       ->where('stu_admission.branch_code',Auth::user()->school_id)
+      ->where('stu_admission.acadmic_year',app_config('Session',Auth::user()->school_id))
+      ->orderBy('id','desc')
+      ->get();
+
+      $exam_details = DB::table('exam_schedule')
+            ->join('exam_schedule_details', 'exam_schedule.exam', '=', 'exam_schedule_details.exam_id')
+            ->select('exam_schedule_details.full_marks', 'exam_schedule_details.pass_marks')
+            ->where('exam_schedule.exam',$examid)
+            ->where('exam_schedule.academic_year',app_config('Session',Auth::user()->school_id))
+             ->where('exam_schedule_details.sub_id',$subject)
+            ->get();
+
+      $cntmarks=DB::table('mark_register')->where('exam',$examid)->where('course',$cid)->where('batch',$bid)->where('subject',$subject)->where('academic_year',app_config('Session',Auth::user()->school_id))->count();
+
+      echo $student."|".$exam_details."|".$cntmarks;
+  }
+
+  public function insert_mark_register(Request $request)
+  {
+    $exam_id=Input::get('exam_id');
+    $course=Input::get('course');
+    $batch=Input::get('batch');
+    $subject=Input::get('subject');
+    $reg_no=Input::get('reg_no');
+    $roll_no=Input::get('roll_no');
+    $stu_name=Input::get('stu_name');
+    $stu_id=Input::get('stu_id');
+    $attendance=Input::get('attendance');
+    $marks=Input::get('marks');
+    $full_marks=Input::get('full_marks');
+    $pass_marks=Input::get('pass_marks');
+    // echo "abs:";
+    // print_r($abs);
+    // exit;
+    $created_date = date('d-m-Y H:i:s');
+
+
+    for($i=0;$i<count($reg_no);$i++)
+    {
+
+        $save=DB::table('mark_register')
+        ->insert(['exam'=>$exam_id,'course'=>$course,'batch'=>$batch,'register_no'=>$reg_no[$i],'roll_no'=>$roll_no[$i],'student_name'=>$stu_name[$i],'stu_id'=>$stu_id[$i],'full_marks'=>$full_marks[$i],'pass_marks'=>$pass_marks[$i],'marks'=>$marks[$i],'subject'=>$subject,'academic_year'=>app_config('Session',Auth::user()->school_id),'created_date'=>$created_date,'branch_code'=>Auth::user()->school_id]);
+
+
+    }
+     if(!empty($save)){
+         return redirect('Exam/create_mark_register')->with([
+                 'message' => 'Marks is Added Succesfully.'
+             ]);
+       }else{
+              return redirect('Exam/create_mark_register')->with([
+                   'message' => 'Marks Added failed.',
+                   'message_important'=>true
+               ]);
+            }
+     }
+  public function marklist(Request $request)
+  {
+      $xid=$request->xid;
+      $bid=$request->bid;
+      $cid=$request->cid;
+
+      $s=DB::table('subject_allocation')
+          ->join('tb_subject','subject_allocation.subject','=','tb_subject.id')
+          ->where('subject_allocation.branch_code',Auth::user()->school_id)
+          ->where('subject_allocation.batch','=',$bid)
+          ->where('subject_allocation.course','=',$cid)
+          ->get();
+
+
+            $m=DB::table('mark_register')
+          ->join('tb_course','mark_register.course','=','tb_course.id')
+          ->join('tb_batch','mark_register.batch','=','tb_batch.id')
+          ->join('tb_exam','mark_register.exam','=','tb_exam.id')
+          ->groupby('mark_register.register_no')
+          ->where('mark_register.batch','=',$bid)
+          ->where('mark_register.course','=',$cid)
+          ->where('mark_register.exam','=',$xid)
+          ->get();
+          $result=array();
+          foreach($s as $ss)
+          {
+
+          foreach($m as $mkk)
+          {
+             $mkk->register_no;
+
+               $mk=DB::table('mark_register')
+          ->join('tb_course','mark_register.course','=','tb_course.id')
+          ->join('tb_batch','mark_register.batch','=','tb_batch.id')
+          ->join('tb_subject','mark_register.subject','=','tb_subject.id')
+          ->join('tb_exam','mark_register.exam','=','tb_exam.id')
+          ->where('mark_register.batch','=',$bid)
+          ->where('mark_register.course','=',$cid)
+          ->where('mark_register.exam','=',$xid)
+          ->where('mark_register.register_no','=',$mkk->register_no)
+          ->where('mark_register.subject','=',$ss->subject)
+          ->get();
+          foreach($mk as $mm)
+          {
+            array_push($result,array('marks'=>$mm->marks,'reg_no'=>$mm->register_no,'id'=>$mm->id));
+          }
+          }
+        }
+
+        echo $s.'|' .json_encode($result) .'|' .$m;
+  }
+
+public function marks_studentlist(Request $request)
+{
+echo $cid=$request->cid;
+echo $bid=$request->bid;
+
+  $student=DB::table('stu_admission')
+  ->where('course',$cid)
+  ->where('batch',$bid)
+   ->where('stu_admission.branch_code',Auth::user()->school_id)
+  ->where('stu_admission.acadmic_year',app_config('Session',Auth::user()->school_id))
+        ->orderBy('id','desc')
+        ->get();
+   echo $student;
+
+}
+
+public function view_report(Request $request,$id)
+{
+        $reg_no=DB::table('stu_admission')
+        ->where('id',$id)
+        ->get();
+        foreach($reg_no as $r_no)
+        {
+          $reg=$r_no->reg_no;
+          $cls=$r_no->course;
+        }
+        $student_detail=DB::table('stu_admission')
+        ->join('tb_course','stu_admission.course','=','tb_course.id')
+        ->join('tb_batch','stu_admission.batch','=','tb_batch.id')
+        ->where('reg_no','=',$reg)
+        ->get();
+
+        $grade=DB::table('tb_marks_grade')->get();
+        $std=DB::table('assign_subject')
+        ->join('tb_subject','assign_subject.subject','=','tb_subject.id')
+        ->select('tb_subject.subject_name','tb_subject.id')
+        ->where('course','=',$cls)
+        ->get();
+        $exam=DB::table('tb_exam')
+        ->get();
+        $result=array();
+        foreach($exam as $ex)
+        {
+
+            $report=DB::table('mark_register')
+          ->join('tb_subject','mark_register.subject','=','tb_subject.id')
+          ->join('tb_exam','mark_register.exam','=','tb_exam.id')
+          ->where('mark_register.register_no','=',$reg)
+          ->where('mark_register.exam','=',$ex->id)
+          ->get();
+
+        foreach($report as $r)
+        {
+          if($ex->id == $r->exam)
+          {
+              array_push($result,array('marks'=>$r->marks,'subject'=>$r->subject,'exam'=>$r->exam,'exam_name'=>$r->exam_name));
+          }
+        }
+        }
+        json_encode($result);
+        // echo"<pre>";
+        // print_r($result);
+        // exit;
+
+
+        return view('Exam.view_report_card',compact('result','std','exam','student_detail','grade'));
+    }
+
+    public function search_grade_name(Request $request)
+    {
+      $marks=$request->marks;
+      $grade=DB::table('tb_marks_grade')
+       ->where('percent_from','>=',$marks)
+      ->where('percent_upto','<=',$marks)
+      ->get();
+      foreach($grade as $g)
+      {
+        echo $g->grade_name;
+      }
+    }
+
+	public function student_exam_report(Request $request)
+	{
+		$course=DB::table('tb_course')->where('branch_code',Auth::user()->school_id)->get();
+      $accadmicyear = DB::table('academicyear')
+        ->where('branch_code',Auth::user()->school_id)
+        ->get();
+		return view('Exam.search_by_student',compact('course','accadmicyear'));
+	}
+
+	public function student_for_mark(Request $request)
+	{
+    $cid=$request->cid;
+    $bid=$request->bid;
+    $accadmicyear=$request->accadmicyear;
+		$student=DB::table('stu_admission')
+    ->where('course','=',$cid)
+    ->where('batch','=',$bid)
+    ->where('acadmic_year','=',$accadmicyear)
+    ->get();
+    echo $student;
+	}
+
+  public function mark_by_student_name(Request $request,$cid,$id)
+  {
+    $cls=$request->cid;
+    $id=$request->id;
+
+
+        $reg_no=DB::table('stu_admission')
+        ->where('id',$id)
+        ->get();
+        foreach($reg_no as $r_no)
+        {
+         echo $reg=$r_no->reg_no;
+
+
+        }
+
+     $student_detail=DB::table('stu_admission')
+        ->join('tb_course','stu_admission.course','=','tb_course.id')
+        ->join('tb_batch','stu_admission.batch','=','tb_batch.id')
+        ->where('reg_no','=',$reg)
+        ->get();
+
+        $grade=DB::table('tb_marks_grade')->get();
+        $std=DB::table('assign_subject')
+        ->join('tb_subject','assign_subject.subject','=','tb_subject.id')
+        ->select('tb_subject.subject_name','tb_subject.id')
+        ->where('course','=',$cls)
+        ->get();
+        $exam=DB::table('tb_exam')
+        ->get();
+        $result=array();
+        foreach($exam as $ex)
+        {
+            $report=DB::table('mark_register')
+          ->join('tb_subject','mark_register.subject','=','tb_subject.id')
+          ->join('tb_exam','mark_register.exam','=','tb_exam.id')
+          ->where('mark_register.register_no','=',$reg)
+          ->where('mark_register.exam','=',$ex->id)
+          ->get();
+
+        foreach($report as $r)
+        {
+          if($ex->id == $r->exam)
+          {
+              array_push($result,array('marks'=>$r->marks,'subject'=>$r->subject,'exam'=>$r->exam,'exam_name'=>$r->exam_name));
+          }
+        }
+        }
+         json_encode($result);
+          return view('Exam.view_student_report_card',compact('result','std','exam','student_detail','grade'));
+  }
+
+ }
+
+
+?>

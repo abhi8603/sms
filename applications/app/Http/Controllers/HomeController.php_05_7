@@ -1,0 +1,118 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
+use Auth;
+
+class HomeController extends Controller
+{
+    /**
+     * Create a new controller instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+      //  $this->middleware('auth');
+    }
+
+    /**
+     * Show the application dashboard.
+     *
+     * @return \Illuminate\Contracts\Support\Renderable
+     */
+
+    public function UserRegister(Request $request){
+	//echo 	url('');exit;
+      $this->validate($request, [
+     'email'=>'required|string|max:255|unique:users',
+     'mobile'=>'required|string|max:255|unique:users',
+     'password'=>'required|string|max:255',
+     'name'=>'required|string|max:255',
+	 'file'=>'required',
+     ]);
+		
+	  $errors= array();
+      $file_name = $_FILES['file']['name'];
+      $file_size =$_FILES['file']['size'];
+      $file_tmp =$_FILES['file']['tmp_name'];
+      $file_type=$_FILES['file']['type'];
+		$tmp = explode('.', $file_name);
+$file_ext = end($tmp);
+    //  $file_ext=strtolower(end(explode('.',$_FILES['file']['name'])));
+      
+      $extensions= array("jpeg","jpg","png");
+		
+		  if(in_array($file_ext,$extensions)=== false){
+         $errors[]="extension not allowed, please choose a JPEG or PNG file.";
+      }
+      
+      if($file_size > 2097152){
+         $errors[]='File size must be excately 2 MB';
+      }
+      
+      if(empty($errors)==true){
+   if(move_uploaded_file($file_tmp,"assets/images/profile_image/".$file_name)){
+	   move_uploaded_file($file_tmp,"application/assets/images/profile_image/".$file_name);
+   }else{
+    return redirect('register')->with([
+        'message' => 'Unable to upload User Photo.Please try again.',
+        'message_important'=>true
+    ]);
+   }
+     $data=array(
+       "email"=> $request->email,
+       "mobile"=>$request->mobile,
+	   "username"=>$request->email,
+       "password"=>bcrypt($request->password),
+       "name"=>$request->name,
+		 "school_name"=>app_config('School_Name'),
+		 "school_id"=>"2",
+       "user_role"=> "NA",
+		 "profile_img"=>"assets/images/profile_image/".$file_name,
+       "status"=>1,
+     );
+       $save=DB::table('users')->insertGetId($data);
+       if($save){
+         return redirect('/')->with([
+           'message' => 'Registered Successfully. Please Login.'
+    ]);
+       }else{
+         return redirect('register')->with([
+        'message' => 'something went worng.Please try again.',
+        'message_important'=>true
+    ]);
+       }
+	  }else{
+		   return redirect('register')->with([
+        'message' => $errors,
+        'message_important'=>true
+    ]);
+}
+}
+
+    public function index()
+    {
+    $this->middleware('auth');
+    if(Auth::user()->status==0){
+      Auth::logout();
+      return redirect('/')->with([
+     'message' => 'unauthorized access.',
+     'message_important'=>true
+       ]);
+    }
+    if(Auth::user()->user_role=="NA"){
+      $formData=DB::table('applications')
+      ->where('email',Auth::user()->email)->where('s_phone_no',Auth::user()->mobile)->get();
+	//	print_r( $formData);exit;
+      return view('home',compact('formData'));
+    }else{
+
+        return view('home');
+    }
+
+    }
+}

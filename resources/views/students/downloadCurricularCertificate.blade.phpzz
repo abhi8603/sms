@@ -1,0 +1,36 @@
+<link rel="stylesheet" href="{{ URL::asset('assets/bower_components/bootstrap/dist/css/bootstrap.min.css') }}">
+<link rel="stylesheet" href="{{ URL::asset('assets/bower_components/font-awesome/css/font-awesome.min.css') }}">
+<link rel="stylesheet" href="{{ URL::asset('assets/bower_components/Ionicons/css/ionicons.min.css') }}">
+<link rel="stylesheet" href="{{ URL::asset('assets/dist/css/AdminLTE.min.css') }}">
+<link rel="stylesheet" href="{{ URL::asset('assets/dist/css/skins/_all-skins.min.css') }}">
+<link rel="stylesheet" href="{{ URL::asset('assets/bower_components/morris.js/morris.css') }}">   <!-- Morris chart -->
+<link rel="stylesheet" href="{{ URL::asset('assets/bower_components/jvectormap/jquery-jvectormap.css') }}">
+<link rel="stylesheet" href="{{ URL::asset('assets/bower_components/bootstrap-datepicker/dist/css/bootstrap-datepicker.min.css') }}">
+<link rel="stylesheet" href="{{ URL::asset('assets/bower_components/font-awesome/css/font-awesome.min.css') }}">    <!-- Ionicons -->
+ <link rel="stylesheet" href="{{ URL::asset('assets/bower_components/Ionicons/css/ionicons.min.css') }}">  <!-- jvectormap -->
+ <style>
+
+@media print {
+    * {
+        -webkit-print-color-adjust: exact;
+    }
+}
+
+ </style>
+ <body></body>
+<div style="background-image: url('{{ URL::asset('assets/co.jpeg') }}');background-repeat: no-repeat;background-position: center;
+    background-size: contain;height:600px;visibility: visible; -webkit-print-color-adjust: exact;">
+            <div class="row invoice-info" style="text-align:center">
+
+            <div class="col-sm-8 offset-4 invoice-col" style="padding-left: 90px;padding-right: 100px;">
+            <p style="margin-top: 304;margin-left:516px;">{{$stu_name}}</p>
+            <p style="margin-top: 24;margin-left:486;">{{$class}}</p>
+            <p style="margin-top: 22;margin-left:435px;">{{$participating_in}}</p>
+            <p style="margin-top: 28;margin-left:700;">{{$accdmic_year}}</p>
+          </div>
+            
+
+            </div>
+
+</div>
+</div>
